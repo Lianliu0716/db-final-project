@@ -1,141 +1,113 @@
-# 建立虛擬環境 / 進入虛擬環境
+# 線上電影訂票選位系統
+
+資料庫課程期末專題。以 Django + MySQL 實作的電影院訂票網站，涵蓋選片、選場次、視覺化選位、訂單查詢與退票的完整流程。
+
+## 功能
+
+| 功能 | 說明 |
+|---|---|
+| 瀏覽電影 | 上映中／全部電影列表，含片長、分級、類型與簡介 |
+| 連動式選擇 | 選電影 → 帶出有該片的分店 → 帶出該分店場次 → 帶出該場次座位，每一層都以 AJAX 向後端查詢，不重整頁面 |
+| 視覺化選位 | 以座位表呈現該場次剩餘座位，已售出的座位不可選取 |
+| 訂票 | 送出後產生 6 碼取票驗證碼，同時寫入訂票記錄並更新剩餘座位數 |
+| 快速訂票 | 以電話號碼辨識回訪客戶，省去重複填寫 |
+| 查詢與退票 | 以電話號碼查詢訂單，可取消訂位 |
+
+## 資料庫設計
+
+課程重點在資料庫，所以先在 MySQL Workbench 建好綱要並匯入資料，再用 `python manage.py inspectdb` 反向產生 Django 模型（因此模型皆為 `managed = False`，schema 由資料庫端管理）。
+
+```mermaid
+erDiagram
+    MOVIE ||--o{ SHOWS : "排片"
+    THEATER ||--o{ SHOWS : "在哪個分店"
+    SHOWS ||--o{ SEAT : "場次座位"
+    SHOWS ||--o{ TICKET : "售出"
+    CUSTOMER ||--o{ TICKET : "訂購"
+
+    MOVIE {
+        int movie_ID PK
+        varchar title_ch
+        varchar title_en
+        varchar type
+        varchar rating
+        int duration
+        varchar status
+    }
+    THEATER {
+        varchar branch PK
+        int room_num
+        int capacity
+    }
+    SHOWS {
+        int show_ID PK
+        int movie_ID FK
+        varchar branch
+        int room
+        datetime show_time
+        int remain_seat
+    }
+    SEAT {
+        int show_id PK
+        varchar row PK
+        int col PK
+    }
+    CUSTOMER {
+        varchar phone PK
+        varchar name
+    }
+    TICKET {
+        varchar verify_code PK
+        varchar phone FK
+        int show_ID FK
+        varchar seat_row
+        int seat_col
+        datetime booking_time
+    }
+```
+
+`seat` 使用 `(show_id, row, col)` 複合主鍵，確保同一場次的同一個座位不會重複售出。
+
+## API
+
+前端以 fetch 呼叫，皆回傳 JSON：
+
+| 路由 | 用途 |
+|---|---|
+| `GET /api/branches/<movie_id>/` | 該電影有排片的分店 |
+| `GET /api/showtimes/<movie_id>/<branch>/` | 該分店的場次 |
+| `GET /api/seats/<show_id>/` | 該場次座位狀態 |
+| `POST /api/submit_ticket/` | 送出訂票，回傳取票驗證碼 |
+| `POST /api/check_phone/` | 以電話查詢是否為既有客戶 |
+
+頁面路由：`/`（首頁）、`/movies/`（電影列表）、`/search_order/`（訂單查詢）、`/quick_order/`、`/cancel_order/`。
+
+## 技術棧
+
+Django 5.1 · MySQL 8（`mysqlclient` / `PyMySQL`）· 原生 JavaScript（fetch）· Bootstrap 版型
+
+## 安裝與執行
+
+```bash
 python -m venv DB_venv
 .\DB_venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-# 安裝 Django 與其他相關套件
-pip install django PyMySQL
+MySQL 端先建好 `movie_db` 並匯入資料，接著設定連線參數：
 
-# 安裝並設定 MySQL
-- 到 MySQL 官網下載安裝檔並安裝 (參考 lab2)
-- 下載 MySQL Workbench
-- 將 .csv檔匯入 MySQL Workbench
-
-# 建立 Django 新專案
-django-admin startproject DB_project
-- 輸入此指令會產生一個 Django project 資料夾
-
-# 測試是否成功連進 Django
+```bash
 cd DB_project
+copy .env.example .env      # 編輯 .env 填入 DJANGO_SECRET_KEY 與 DB_PASSWORD
 python manage.py runserver
-http://127.0.0.1:8000/
+```
 
-# 建立 Django app : https://djangogirlstaipei.gitbooks.io/django-girls-taipei-tutorial/content/django/project_and_app.html
-python manage.py startapp myapp
+`.env` 已列入 `.gitignore`，密碼與密鑰不會進版控。
 
-1. 先到 myapp/views.py 新增 hello_world
-    from django.http import HttpResponse
-    def home(request):
-        return HttpResponse("Hello World!")
+> 開發過程的逐步筆記（建專案、接 MySQL、建 template 等）保留在 [`docs/build-notes.md`](docs/build-notes.md)。
 
-2. 再到 DB_project/urls.py 中，引入剛剛再views中定義的 hello_world 
-    from myapp.views import home
-    path('home/', home),
- 
-3. 執行並檢查是否成功
-    python manage.py runserver
-    http://127.0.0.1:8000/home/
+## 已知限制
 
-# 建立 Django Template
-
-1. 在 DB_project/settings.py 搜尋 TEMPLATES，在 DIRS 中加入：
-    os.path.join(BASE_DIR, 'templates').replace('\\', '/')
-
-2. 在 manage.py 同級處新增一個 templates 資料夾，並在其中新增 home.html
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>hello_world</title>
-    </head>
-    <body>
-        <h1>hello_world!</h1>
-    </body>
-    </html>
-
-3. 進入 myapp/views.py 中，修改 home
-    from django.shortcuts import render
-    def home(request):  
-        return render(request, 'home.html') #修改
-
-4. 執行並檢查是否成功
-    python manage.py runserver
-    http://127.0.0.1:8000/home/
-
-5. 補充資料
-    https://ithelp.ithome.com.tw/articles/10297327
-
-# 資料庫遷移 (MySQL 連線到 Django)
-0. DB_project 的 __init__ 新增:
-    import pymysql
-    pymysql.install_as_MySQLdb()
-
-1. 修改 settings.py（連線參數改成從環境變數讀，密碼不寫死在程式裡）
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.mysql',              # 使用 MySQL
-            'NAME': os.environ.get('DB_NAME', 'movie_db'),     # 資料庫名稱
-            'USER': os.environ.get('DB_USER', 'root'),         # 資料庫用戶
-            'PASSWORD': os.environ.get('DB_PASSWORD', ''),     # 密碼（寫在 .env）
-            'HOST': os.environ.get('DB_HOST', 'localhost'),    # 主機地址（本機用 localhost）
-            'PORT': os.environ.get('DB_PORT', '3306'),         # MySQL 預設端口
-        }
-    }
-
-   實際的值放在 DB_project/.env（已被 .gitignore 擋掉，不會進版控）：
-    cd DB_project
-    copy .env.example .env
-    # 然後編輯 .env 填入 DJANGO_SECRET_KEY 與 DB_PASSWORD
-    pip install python-dotenv
-
-2. 連結已有的資料庫與Django app (根據現有資料庫自動生成 Django 模型。如果是新的資料庫或手動建立的模型，可以跳過這一步。)
-    python manage.py inspectdb > myapp/models.py
-
-3. 剪下所有 models.py 內容，vscode 轉成 utf-8 把內容貼上
-
-4. 建立migrations資料表
-    python manage.py makemigrations
-
-5. migrate同步資料表
-    python manage.py migrate
-
-# Django app 接後端
-1. myapp.view
-2. 接到前端 .html
-
-
-
-python manage.py runserver
-http://localhost:8000/main/home/
-
-# update log
-
-## 1230 1651 update
-將home.html的js css分出來
-將重複的html改為迴圈 (上映中電影、所有電影)
-
-## 1230 2042 update
-將home改為index
-
-## 1230 2113 update
-新增base模板
-
-## 1230 2208 update
-修正沒有更改分店 場次時 無法選座位的問題
-
-## 1230 2219 update
-修正 按send後 訂位成功的頁面 無法顯示問題
-
-## 1230 2235 update
-新增按send(button2)後 將data insert入database
-
-## 1230 2318
-簡單修改查詢訂單頁面
-
-## 1230 2324
-新增查詢訂票後 刪除按鈕
-
-# todo
-
-
-
+- `myapp/views.py` 中 `get_showtimes_by_movie_and_branch` 定義了兩次，後者會覆蓋前者，屬於開發過程遺留的重複程式碼。
+- 訂票流程未使用資料庫交易，高並發下有同一座位被重複售出的可能，正式環境應以 transaction 加鎖處理。
+- `DB_project/` 底下有一份重複的設定檔（`settings.py`、`urls.py`、`wsgi.py` 等），實際生效的是 `DB_project/DB_project/` 內那份。
