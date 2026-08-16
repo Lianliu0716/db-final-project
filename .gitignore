@@ -1,0 +1,22 @@
+# Python / Django
+__pycache__/
+*.pyc
+DB_venv/
+.venv/
+venv/
+db.sqlite3
+*.log
+
+# 機密設定
+.env
+local_settings.py
+
+# 壓縮備份
+*.zip
+*.rar
+*.7z
+
+# 作業系統
+Thumbs.db
+Desktop.ini
+.DS_Store
