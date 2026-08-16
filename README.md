@@ -78,6 +78,22 @@ erDiagram
 `seat` uses the composite key `(show_id, row, col)`, so the same seat cannot be sold twice for the same
 showtime. `ticket.verify_code` is the customer-facing collection code and doubles as the primary key.
 
+## What is my own work
+
+Team project for the database course. My contributions were concentrated in the booking flow — from the
+template layer through to the database writes:
+
+| Part | Mine? |
+|---|---|
+| **Template layer** — `base.html`, splitting js/css out of the page, replacing duplicated markup with loops | ✅ original |
+| **Seat selection flow** — including the fix for seats being unselectable when branch/showtime was left unchanged | ✅ original |
+| **Booking write path** — submit → insert ticket → confirmation page | ✅ original |
+| **Order lookup & cancellation** — query by phone, cancel button | ✅ original |
+| Schema design and data import | 🤝 team |
+| Remaining views and styling | 🤝 team |
+
+The development log in [`docs/build-notes.md`](docs/build-notes.md) records this work as it happened.
+
 ## API
 
 All endpoints return JSON and are called with `fetch` from the templates:
